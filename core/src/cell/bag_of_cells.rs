@@ -10,7 +10,6 @@ pub struct BagOfCells {
     pub roots: Vec<ArcCell>,
 }
 
-
 impl BagOfCells {
     pub fn new(roots: &[ArcCell]) -> BagOfCells {
         BagOfCells {
@@ -92,23 +91,46 @@ impl BagOfCells {
             cells.push(cell.to_arc());
         }
 
-        println!("{}", raw.roots.len());
-        let a = raw.roots.len();
-        let b = raw_cells_len;
-        let c = a - b;
-        if raw_cells_len - raw.roots.len() < 1 {
-            println!("this isit");
-            return Err(TonCellError::boc_deserialization_error(
-                "Index out of bounds: Length of array of raw cells must be more than number of roots",
-            ));
-        };
-        let roots = raw
-            .roots
-            .into_iter()
-            .map(|r| &cells[raw_cells_len - 1 - r])
-            .map(Arc::clone)
-            .collect();
+        // let roots = raw
+        //     .roots
+        //     .into_iter()
+        //     .map(|r| &cells[raw_cells_len - 1 - r])
+        //     .map(Arc::clone)
+        //     .collect();
 
+        // let mut roots= vec![];
+        // for r in raw.root_cell_indices.into_iter() {
+        //     if raw_cells_len - 1 - r < 0 {
+        //         print!("fssdfdsf");
+        //         let index = raw_cells_len - 1 - r;
+        //         match cells.get(index){
+        //             Some(cell) => { roots.push(cell.clone()) },
+        //             None => {
+        //                 return Err(TonCellError::boc_deserialization_error(
+        //                     "Index out of bounds: Length of array of raw cells must be less than number of roots"
+        //                 ))},
+        //         };
+        //     }
+        //     else {
+        //         return Err(TonCellError::boc_deserialization_error(
+        //             "Index out of bounds: Length of array of raw cells must be less than number of roots"
+        //         ));
+        //     }
+        //
+        // }
+
+        let mut roots= vec![];
+        for r in raw.root_cell_indices.into_iter() {
+            let index: isize = raw_cells_len as isize - 1 - r as isize;
+            if index >= 0 {
+                match cells.get(index as usize) {
+                    Some(cell) => { roots.push(cell.clone()) }
+                    None => return Err(TonCellError::boc_deserialization_error("Index out of bounds: Length of array of raw cells must be less than number of roots")),
+                }
+            } else {
+                return Err(TonCellError::boc_deserialization_error("Index out of bounds: Length of array of raw cells must be less than number of roots"));
+            };
+        }
         Ok(BagOfCells { roots })
     }
 
@@ -133,7 +155,7 @@ impl BagOfCells {
 mod tests {
     use std::sync::Arc;
     use std::time::Instant;
-
+    use tokio_test::assert_err;
     use crate::cell::raw_boc_from_boc::convert_to_raw_boc;
     use crate::cell::{BagOfCells, CellBuilder, TonCellError};
     use crate::message::ZERO_COINS;
@@ -351,11 +373,13 @@ mod tests {
     #[test]
     fn check_invalid_hex_boc() -> Result<(), TonCellError> {
         // Failed in bag_of_cells.rs line 96,  len(root) = 0
-        let hex_1_parse = "b5ee9c72c9000001000000000000100000000000000000ff20d1fffe20000052180000001926";
+        let hex_1_parse =
+            "b5ee9c72c9000001000000000000100000000000000000ff20d1fffe20000052180000001926";
         let hex_2_parse = "b5ee9c725e0000030000000000000000000000000000000000005e";
 
-        let hex_3_get_bit_descriptor = "b5ee9c72ca0000010000560c0c130c0c0c0c0c0c0c0c000c0c0c5e5e0c0c00b5ee0c5e5e";
-        let boc = BagOfCells::parse_hex(hex_1_parse).unwrap();
+        let hex_3_get_bit_descriptor =
+            "b5ee9c72ca0000010000560c0c130c0c0c0c0c0c0c0c000c0c0c5e5e0c0c00b5ee0c5e5e";
+        let boc = assert_err!(BagOfCells::parse_hex(hex_1_parse));
         Ok(())
     }
 }
