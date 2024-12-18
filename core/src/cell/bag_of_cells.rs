@@ -68,8 +68,8 @@ impl BagOfCells {
 
     pub fn parse(serial: &[u8]) -> Result<BagOfCells, TonCellError> {
         let raw = RawBagOfCells::parse(serial)?;
-        let num_cells = raw.cells.len();
-        let mut cells: Vec<ArcCell> = Vec::with_capacity(num_cells);
+        let raw_cells_len = raw.cells.len();
+        let mut cells: Vec<ArcCell> = Vec::with_capacity(raw_cells_len);
 
         for (cell_index, raw_cell) in raw.cells.into_iter().enumerate().rev() {
             let mut references = Vec::with_capacity(raw_cell.references.len());
@@ -79,7 +79,7 @@ impl BagOfCells {
                         "References to previous cells are not supported",
                     ));
                 }
-                references.push(cells[num_cells - 1 - ref_index].clone());
+                references.push(cells[raw_cells_len - 1 - ref_index].clone());
             }
 
             let cell = Cell::new(
@@ -92,10 +92,20 @@ impl BagOfCells {
             cells.push(cell.to_arc());
         }
 
+        println!("{}", raw.roots.len());
+        let a = raw.roots.len();
+        let b = raw_cells_len;
+        let c = a - b;
+        if raw_cells_len - raw.roots.len() < 1 {
+            println!("this isit");
+            return Err(TonCellError::boc_deserialization_error(
+                "Index out of bounds: Length of array of raw cells must be more than number of roots",
+            ));
+        };
         let roots = raw
             .roots
             .into_iter()
-            .map(|r| &cells[num_cells - 1 - r])
+            .map(|r| &cells[raw_cells_len - 1 - r])
             .map(Arc::clone)
             .collect();
 
@@ -335,6 +345,17 @@ mod tests {
             .build()?;
         let boc = BagOfCells::from_root(root);
         let _raw = convert_to_raw_boc(&boc)?;
+        Ok(())
+    }
+
+    #[test]
+    fn check_invalid_hex_boc() -> Result<(), TonCellError> {
+        // Failed in bag_of_cells.rs line 96,  len(root) = 0
+        let hex_1_parse = "b5ee9c72c9000001000000000000100000000000000000ff20d1fffe20000052180000001926";
+        let hex_2_parse = "b5ee9c725e0000030000000000000000000000000000000000005e";
+
+        let hex_3_get_bit_descriptor = "b5ee9c72ca0000010000560c0c130c0c0c0c0c0c0c0c000c0c0c5e5e0c0c00b5ee0c5e5e";
+        let boc = BagOfCells::parse_hex(hex_1_parse).unwrap();
         Ok(())
     }
 }
