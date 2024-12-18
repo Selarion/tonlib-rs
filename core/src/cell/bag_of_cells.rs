@@ -10,6 +10,7 @@ pub struct BagOfCells {
     pub roots: Vec<ArcCell>,
 }
 
+
 impl BagOfCells {
     pub fn new(roots: &[ArcCell]) -> BagOfCells {
         BagOfCells {
@@ -72,8 +73,8 @@ impl BagOfCells {
 
         for (cell_index, raw_cell) in raw.cells.into_iter().enumerate().rev() {
             let mut references = Vec::with_capacity(raw_cell.references.len());
-            for ref_index in &raw_cell.references {
-                if *ref_index <= cell_index {
+            for ref_index in raw_cell.references {
+                if ref_index <= cell_index {
                     return Err(TonCellError::boc_deserialization_error(
                         "References to previous cells are not supported",
                     ));
