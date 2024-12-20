@@ -361,22 +361,36 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_method_for_invalid_hashes() -> Result<(), TonCellError> {
-        let hex_1_parse = "b5ee9c725e0000030000000000000000000000000000000000005e";
-        let boc = BagOfCells::parse_hex(hex_1_parse);
+    fn test_errors_for_parse_method() -> Result<(), TonCellError> {
+        let hex_1 = "b5ee9c725e0000030000000000000000000000000000000000005e";
+        let boc = BagOfCells::parse_hex(hex_1);
         let err_msg = "Bag of cells deserialization error (BoC deserialization error: Count cells in boc shoud be less or equel than 4: got 6)";
         assert_eq!(err_msg, boc.unwrap_err().to_string());
 
-        let hex_2_parse =
+        let hex_2 =
             "b5ee9c72c9000001000000000000100000000000000000ff20d1fffe20000052180000001926";
-        let boc = BagOfCells::parse_hex(hex_2_parse);
+        let boc = BagOfCells::parse_hex(hex_2);
         let err_msg = "Bag of cells deserialization error (BoC deserialization error: Index out of bounds: Length of array of raw cells must be less than number of roots)";
         assert_eq!(err_msg, boc.unwrap_err().to_string());
 
-        let hex_3_parse = "b5ee9c7201000001000056600000000c000c0cff5e0000005eb5ee9c72ca0c0c0c0c0c0c00";
-        let boc = BagOfCells::parse_hex(hex_3_parse);
+        let hex_3 = "b5ee9c7201000001000056600000000c000c0cff5e0000005eb5ee9c72ca0c0c0c0c0c0c00";
+        let boc = BagOfCells::parse_hex(hex_3);
         let err_msg = "Bag of cells deserialization error (BoC deserialization error: Index out of bounds: Length of array of raw cells must be less than number of roots)";
         assert_eq!(err_msg, boc.unwrap_err().to_string());
         Ok(())
     }
+
+    #[test]
+    fn test() {
+        let hex = "b5ee9c72ca0000230000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000000c000c0cffffffffffff0000000000000000000000000000000000000000000600080c";
+        let boc = BagOfCells::parse_hex(hex);
+
+        let hex = "b5ee9c72ca0000180000250125000000000000000b0b0b0b0b0b0404040404040404030404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040408080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808080808040404040c04040404040404040404040404040404040404040404040404040404040404040404040404270404040404040404040404040404040404040400005204040404040404040404000404040404040404040404040404040403fb04040404040404040404040404040404040404040404040400002501250b4b0b0800ca00250c00000c000c100c0c0c26";
+        let boc = BagOfCells::parse_hex(hex);
+
+        let hex = "b5ee9c72d1000a000000000000000008860101ff041cffff000100000000000010081c01000000000000000000000000000000000000b5ee00000000ff9c72d1000a0000000000000000000000ac0000000006060606060606060606060606000008d60104ff031cff530000002e0000080000000000000000b0504f4f4ab0b0b0b0b0b0b0b0b00f00b00500000f0000000000030053a900002f00000000000000feffffffff0000000000009ce4ee6100000000000000000000000000000886fc00ff041cffff00000000000063000000000000eeee9c72069c720606060000060600";
+        let boc = BagOfCells::parse_hex(hex);
+        println!("{:?}", boc);
+    }
+
 }
