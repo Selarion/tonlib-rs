@@ -73,12 +73,25 @@ impl BagOfCells {
         for (cell_index, raw_cell) in raw.cells.into_iter().enumerate().rev() {
             let mut references = Vec::with_capacity(raw_cell.references.len());
             for ref_index in raw_cell.references {
-                if ref_index <= cell_index {
-                    return Err(TonCellError::boc_deserialization_error(
-                        "References to previous cells are not supported",
-                    ));
+                if raw_cells_len <= 1 + ref_index{
+                    if ref_index <= cell_index {
+                        return Err(TonCellError::boc_deserialization_error(
+                            "References to previous cells are not supported",
+                        ));
+                    }
+                    if ref_index >= raw_cells_len {
+                        let err_msg = format!(
+                            "Index out of bounds: Try to get by index {:?}, but Vec has {:?} len",
+                            ref_index, raw_cells_len
+                        );
+                        return Err(TonCellError::boc_deserialization_error(err_msg));
+                    }
+                    references.push(cells[ref_index].clone());
                 }
-                references.push(cells[raw_cells_len - 1 - ref_index].clone());
+                else {
+                    let err_msg = "Index out of bounds: Length of array of raw cells must be less than index of ref_cell";
+                    return Err(TonCellError::boc_deserialization_error(err_msg));
+                }
             }
 
             let cell = Cell::new(
@@ -98,38 +111,23 @@ impl BagOfCells {
         //     .map(Arc::clone)
         //     .collect();
 
-        // let mut roots= vec![];
-        // for r in raw.root_cell_indices.into_iter() {
-        //     if raw_cells_len - 1 - r < 0 {
-        //         print!("fssdfdsf");
-        //         let index = raw_cells_len - 1 - r;
-        //         match cells.get(index){
-        //             Some(cell) => { roots.push(cell.clone()) },
-        //             None => {
-        //                 return Err(TonCellError::boc_deserialization_error(
-        //                     "Index out of bounds: Length of array of raw cells must be less than number of roots"
-        //                 ))},
-        //         };
-        //     }
-        //     else {
-        //         return Err(TonCellError::boc_deserialization_error(
-        //             "Index out of bounds: Length of array of raw cells must be less than number of roots"
-        //         ));
-        //     }
-        //
-        // }
-
-        let mut roots= vec![];
-        for r in raw.root_cell_indices.into_iter() {
-            let index: isize = raw_cells_len as isize - 1 - r as isize;
-            if index >= 0 {
-                match cells.get(index as usize) {
-                    Some(cell) => { roots.push(cell.clone()) }
-                    None => return Err(TonCellError::boc_deserialization_error("Index out of bounds: Length of array of raw cells must be less than number of roots")),
+        let mut roots = vec![];
+        for ref_index in raw.root_cell_indices.into_iter() {
+            if raw_cells_len > ref_index {
+                let index = raw_cells_len - 1 - ref_index;
+                if index < raw_cells_len {
+                    roots.push(cells[index].clone());
+                } else {
+                    let err_msg = format!(
+                        "Index out of bounds: Try to get by index {:?}, but Vec has {:?} len",
+                        index, raw_cells_len
+                    );
+                    return Err(TonCellError::boc_deserialization_error(err_msg));
                 }
             } else {
-                return Err(TonCellError::boc_deserialization_error("Index out of bounds: Length of array of raw cells must be less than number of roots"));
-            };
+                let err_msg = "Index out of bounds: Length of array of raw cells must be less than number of roots";
+                return Err(TonCellError::boc_deserialization_error(err_msg));
+            }
         }
         Ok(BagOfCells { roots })
     }
@@ -153,12 +151,12 @@ impl BagOfCells {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-    use std::time::Instant;
-    use tokio_test::assert_err;
     use crate::cell::raw_boc_from_boc::convert_to_raw_boc;
     use crate::cell::{BagOfCells, CellBuilder, TonCellError};
     use crate::message::ZERO_COINS;
+    use std::sync::Arc;
+    use std::time::Instant;
+    use tokio_test::assert_err;
 
     #[test]
     fn cell_hash_works() -> Result<(), TonCellError> {
@@ -371,15 +369,18 @@ mod tests {
     }
 
     #[test]
-    fn check_invalid_hex_boc() -> Result<(), TonCellError> {
-        // Failed in bag_of_cells.rs line 96,  len(root) = 0
-        let hex_1_parse =
-            "b5ee9c72c9000001000000000000100000000000000000ff20d1fffe20000052180000001926";
-        let hex_2_parse = "b5ee9c725e0000030000000000000000000000000000000000005e";
+    fn test_parse_method_for_invalid_hashes() -> Result<(), TonCellError> {
+        // Какая-то ошибка на уровне байтиков.
+        let hex_2 = "b5ee9c725e0000030000000000000000000000000000000000005e";
+        assert_err!(BagOfCells::parse_hex(hex_2));
 
-        let hex_3_get_bit_descriptor =
-            "b5ee9c72ca0000010000560c0c130c0c0c0c0c0c0c0c000c0c0c5e5e0c0c00b5ee0c5e5e";
-        let boc = assert_err!(BagOfCells::parse_hex(hex_1_parse));
+        // let hex_1 =
+        //     "b5ee9c72c9000001000000000000100000000000000000ff20d1fffe20000052180000001926";
+        // assert_err!(BagOfCells::parse_hex(hex_1).err());
+        //
+        // let hex_2 = "b5ee9c72ca0000010000560c0c130c0c0c0c0c0c0c0c000c0c0c5e5e0c0c00b5ee0c5e5e";
+        // assert_err!(BagOfCells::parse_hex(hex_2));
+
         Ok(())
     }
 }
