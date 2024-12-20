@@ -104,13 +104,6 @@ impl BagOfCells {
             cells.push(cell.to_arc());
         }
 
-        // let roots = raw
-        //     .roots
-        //     .into_iter()
-        //     .map(|r| &cells[raw_cells_len - 1 - r])
-        //     .map(Arc::clone)
-        //     .collect();
-
         let mut roots = vec![];
         for ref_index in raw.root_cell_indices.into_iter() {
             if raw_cells_len > ref_index {
@@ -156,7 +149,6 @@ mod tests {
     use crate::message::ZERO_COINS;
     use std::sync::Arc;
     use std::time::Instant;
-    use tokio_test::assert_err;
 
     #[test]
     fn cell_hash_works() -> Result<(), TonCellError> {
@@ -370,17 +362,21 @@ mod tests {
 
     #[test]
     fn test_parse_method_for_invalid_hashes() -> Result<(), TonCellError> {
-        // Какая-то ошибка на уровне байтиков.
-        let hex_2 = "b5ee9c725e0000030000000000000000000000000000000000005e";
-        assert_err!(BagOfCells::parse_hex(hex_2));
+        let hex_1_parse = "b5ee9c725e0000030000000000000000000000000000000000005e";
+        let boc = BagOfCells::parse_hex(hex_1_parse);
+        let err_msg = "Bag of cells deserialization error (BoC deserialization error: Count cells in boc shoud be less or equel than 4: got 6)";
+        assert_eq!(err_msg, boc.unwrap_err().to_string());
 
-        // let hex_1 =
-        //     "b5ee9c72c9000001000000000000100000000000000000ff20d1fffe20000052180000001926";
-        // assert_err!(BagOfCells::parse_hex(hex_1).err());
-        //
-        // let hex_2 = "b5ee9c72ca0000010000560c0c130c0c0c0c0c0c0c0c000c0c0c5e5e0c0c00b5ee0c5e5e";
-        // assert_err!(BagOfCells::parse_hex(hex_2));
+        let hex_2_parse =
+            "b5ee9c72c9000001000000000000100000000000000000ff20d1fffe20000052180000001926";
+        let boc = BagOfCells::parse_hex(hex_2_parse);
+        let err_msg = "Bag of cells deserialization error (BoC deserialization error: Index out of bounds: Length of array of raw cells must be less than number of roots)";
+        assert_eq!(err_msg, boc.unwrap_err().to_string());
 
+        let hex_3_parse = "b5ee9c7201000001000056600000000c000c0cff5e0000005eb5ee9c72ca0c0c0c0c0c0c00";
+        let boc = BagOfCells::parse_hex(hex_3_parse);
+        let err_msg = "Bag of cells deserialization error (BoC deserialization error: Index out of bounds: Length of array of raw cells must be less than number of roots)";
+        assert_eq!(err_msg, boc.unwrap_err().to_string());
         Ok(())
     }
 }
