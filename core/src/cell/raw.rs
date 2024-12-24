@@ -81,12 +81,12 @@ impl RawBagOfCells {
                     magic
                 )));
             }
-
         };
         if size > 4 {
-            return Err(TonCellError::boc_deserialization_error(
-                format!("Count cells in boc shoud be less or equel than 4: got {}", size),
-            ));
+            return Err(TonCellError::boc_deserialization_error(format!(
+                "Count cells in boc should be less or equal than 4: got {}",
+                size
+            )));
         }
 
         //   off_bytes:(## 8) { off_bytes <= 8 }
