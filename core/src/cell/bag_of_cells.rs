@@ -366,7 +366,7 @@ mod tests {
     fn test_error_count_cell_in_boc() -> Result<(), TonCellError> {
         let hex_1 = "b5ee9c725e0000030000000000000000000000000000000000005e";
         let boc = BagOfCells::parse_hex(hex_1);
-        let err_msg = "Bag of cells deserialization error (BoC deserialization error: Count cells in boc should be less or equal than 4: got 6)";
+        let err_msg = "Bag of cells deserialization error (BoC deserialization error: Ref count in cell should be less or equal than 4: got 6)";
         assert_eq!(err_msg, boc.unwrap_err().to_string());
         Ok(())
     }

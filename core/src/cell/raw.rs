@@ -84,7 +84,7 @@ impl RawBagOfCells {
         };
         if size > 4 {
             return Err(TonCellError::boc_deserialization_error(format!(
-                "Count cells in boc should be less or equal than 4: got {}",
+                "Ref count in cell should be less or equal than 4: got {}",
                 size
             )));
         }
