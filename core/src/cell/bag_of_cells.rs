@@ -53,7 +53,7 @@ impl BagOfCells {
         }
     }
 
-    pub fn into_single_root(&mut self) -> Result<ArcCell, TonCellError> {
+    pub fn into_single_root(mut self) -> Result<ArcCell, TonCellError> {
         let root_count = self.roots.len();
         if root_count == 1 {
             Ok(self.roots.pop().unwrap()) // unwrap is safe: we have checked that roots has exactly one element above
@@ -254,7 +254,7 @@ mod tests {
         let boc = BagOfCells::parse_base64(raw)?;
         let cell = boc.single_root()?;
 
-        let mut boc = BagOfCells::parse_base64(raw)?;
+        let boc = BagOfCells::parse_base64(raw)?;
         let intocell = boc.into_single_root()?;
 
         assert_eq!(cell, &intocell);
