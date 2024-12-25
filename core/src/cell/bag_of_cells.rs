@@ -53,7 +53,7 @@ impl BagOfCells {
         }
     }
 
-    pub fn into_single_root(&mut self) -> Result<ArcCell, TonCellError> {
+    pub fn extract_single_root(&mut self) -> Result<ArcCell, TonCellError> {
         let root_count = self.roots.len();
         if root_count == 1 {
             Ok(self.roots.pop().unwrap()) // unwrap is safe: we have checked that roots has exactly one element above
@@ -67,18 +67,33 @@ impl BagOfCells {
 
     pub fn parse(serial: &[u8]) -> Result<BagOfCells, TonCellError> {
         let raw = RawBagOfCells::parse(serial)?;
-        let num_cells = raw.cells.len();
-        let mut cells: Vec<ArcCell> = Vec::with_capacity(num_cells);
+        let raw_cells_len = raw.cells.len();
+        let mut cells: Vec<ArcCell> = Vec::with_capacity(raw_cells_len);
 
         for (cell_index, raw_cell) in raw.cells.into_iter().enumerate().rev() {
             let mut references = Vec::with_capacity(raw_cell.references.len());
-            for ref_index in &raw_cell.references {
-                if *ref_index <= cell_index {
-                    return Err(TonCellError::boc_deserialization_error(
-                        "References to previous cells are not supported",
-                    ));
+            for ref_index in raw_cell.references {
+                if raw_cells_len > ref_index {
+                    if ref_index <= cell_index {
+                        return Err(TonCellError::boc_deserialization_error(
+                            "References to previous cells are not supported",
+                        ));
+                    }
+                    if ref_index >= raw_cells_len {
+                        let err_msg = format!(
+                            "Index out of bounds: Trying to get by index {:?}, but raw.cells \
+                            has {:?} len",
+                            ref_index, raw_cells_len
+                        );
+                        return Err(TonCellError::boc_deserialization_error(err_msg));
+                    }
+                    references.push(cells[raw_cells_len - 1 - ref_index].clone());
+                } else {
+                    let err_msg =
+                        "Index out of bounds: Length of array of raw cells must be less than index \
+                         of ref_cell";
+                    return Err(TonCellError::boc_deserialization_error(err_msg));
                 }
-                references.push(cells[num_cells - 1 - ref_index].clone());
             }
 
             let cell = Cell::new(
@@ -91,13 +106,16 @@ impl BagOfCells {
             cells.push(cell.to_arc());
         }
 
-        let roots = raw
-            .roots
-            .into_iter()
-            .map(|r| &cells[num_cells - 1 - r])
-            .map(Arc::clone)
-            .collect();
-
+        let mut roots = vec![];
+        for ref_index in raw.root_cell_indices.into_iter() {
+            if raw_cells_len > ref_index {
+                roots.push(cells[raw_cells_len - 1 - ref_index].clone());
+            } else {
+                let err_msg = "Index out of bounds: Length of array of raw cells must be less \
+                than number of roots";
+                return Err(TonCellError::boc_deserialization_error(err_msg));
+            }
+        }
         Ok(BagOfCells { roots })
     }
 
@@ -123,6 +141,8 @@ mod tests {
     use std::sync::Arc;
     use std::time::Instant;
 
+    use tokio_test::assert_ok;
+
     use crate::cell::raw_boc_from_boc::convert_to_raw_boc;
     use crate::cell::{BagOfCells, CellBuilder, TonCellError};
     use crate::message::ZERO_COINS;
@@ -142,7 +162,7 @@ mod tests {
             .parse()
             .unwrap();
         let raw =
-            "te6cckECVAEAFekABEMgBU05qWzDJGQbikIyil5wp0VNtBaYxzR5nT6Udj8GeAXMAQIDBAEU/wD0pBP0vPLICwUBFP\
+        "te6cckECVAEAFekABEMgBU05qWzDJGQbikIyil5wp0VNtBaYxzR5nT6Udj8GeAXMAQIDBAEU/wD0pBP0vPLICwUBFP\
         8A9KQT9LzyyAscART/APSkE/S88sgLEwEhAAAAAAAAAAAAAAAAAAAAACAbAgFiBgcCAswICQAboPYF2omh9AH0gfSBq\
         GEAt9kGOASS+CcADoaYGAuNhKia+B+AZwfSB9IBj9ABi465D9ABj9ABgBaY+QwQgHxT9S3UqYmiz4BPAQwQgLxqKM3U\
         sYoiIB+AVwGsEILK+D3l1JrPgF8C+CQgf5eEAgEgCgsCASAMDQCB1AEGuQ9qJofQB9IH0gahgCaY+QwQgLxqKM3QFBC\
@@ -230,9 +250,9 @@ mod tests {
         let cell = boc.single_root()?;
 
         let mut boc = BagOfCells::parse_base64(raw)?;
-        let intocell = boc.into_single_root()?;
+        let single_root = boc.extract_single_root()?;
 
-        assert_eq!(cell, &intocell);
+        assert_eq!(cell, &single_root);
 
         let jetton_wallet_code_lp = cell.reference(0)?;
         let pool_code = cell.reference(1)?;
@@ -334,6 +354,136 @@ mod tests {
             .build()?;
         let boc = BagOfCells::from_root(root);
         let _raw = convert_to_raw_boc(&boc)?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_error_count_cell_in_boc() -> Result<(), TonCellError> {
+        let hex = "b5ee9c725e0000030000000000000000000000000000000000005e";
+        let boc_err = BagOfCells::parse_hex(hex).unwrap_err();
+        let err_msg =
+            "Bag of cells deserialization error (BoC deserialization error: Ref count in cell \
+                should be less or equal than 4: got 6)";
+
+        match boc_err {
+            TonCellError::BagOfCellsDeserializationError(_) => {
+                assert_eq!(err_msg, boc_err.to_string());
+            }
+            _ => return Err(boc_err),
+        };
+        Ok(())
+    }
+
+    #[test]
+    fn test_error_cell_count() -> Result<(), TonCellError> {
+        let err_msg =
+            "Bag of cells deserialization error (BoC deserialization error: Index out of bounds: \
+             Length of array of raw cells must be less than number of roots)";
+
+        let hex = "b5ee9c72c9000001000000000000100000000000000000ff20d1fffe20000052180000001926";
+        let boc_err = BagOfCells::parse_hex(hex).unwrap_err();
+
+        match boc_err {
+            TonCellError::BagOfCellsDeserializationError(_) => {
+                assert_eq!(err_msg, boc_err.to_string());
+            }
+            _ => return Err(boc_err),
+        };
+
+        let hex = "b5ee9c7201000001000056600000000c000c0cff5e0000005eb5ee9c72ca0c0c0c0c0c0c00";
+        let boc_err = BagOfCells::parse_hex(hex).unwrap_err();
+        assert_eq!(err_msg, boc_err.to_string());
+        match boc_err {
+            TonCellError::BagOfCellsDeserializationError(_) => {
+                assert_eq!(err_msg, boc_err.to_string());
+            }
+            _ => return Err(boc_err),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_error_index_raw_cell_less_num_cells() -> Result<(), TonCellError> {
+        let err_msg =
+            "Bag of cells deserialization error (BoC deserialization error: Invalid exotic cell data \
+             ((Pruned Branch cell can't have refs, got 7))";
+
+        let hex =
+            "b5ee9c72d1000c0c0c0c20260cba5e0900002a260000000000000009090909090909090909090909090909\
+            0909090909091f1f1f1f090909090909090909090971ee31310909090909090909090200000900090909090\
+            901680909090909090909090909090909090909090909090000000000000000000000000c88f3";
+        let boc_error = BagOfCells::parse_hex(hex).unwrap_err();
+
+        match boc_error {
+            TonCellError::BagOfCellsDeserializationError(_) => {
+                assert_eq!(err_msg, boc_error.to_string());
+            }
+            _ => {
+                return Err(boc_error);
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_error_invalid_exotic_cell_data_merkle() -> Result<(), TonCellError> {
+        let err_msg =
+            "Bag of cells deserialization error (BoC deserialization error: Invalid exotic cell \
+             data ((Merkle Update cell must have exactly (8 + 256 + 16) bits, got 32))";
+
+        let hex =
+            "b5ee9c72ca0000180000250125000000000000000b0b0b0b0b0b0404040404040404030404040404040404\
+            040404040404040404040404040404040404040404040404040404040404040404040404040404040404040\
+            404040404040404040404040404040408080808080808080808080808080808080808080808080808080808\
+            080808080808080808080808080808080808080808080808080808080808080808080808080808080808080\
+            808080808080808080808080808080808080808080808080808080808040404040c04040404040404040404\
+            040404040404040404040404040404040404040404040404040404270404040404040404040404040404040\
+            404040400005204040404040404040404000404040404040404040404040404040403fb0404040404040404\
+            0404040404040404040404040404040400002501250b4b0b0800ca00250c00000c000c100c0c0c26";
+        let boc_error = BagOfCells::parse_hex(hex).unwrap_err();
+        match boc_error {
+            TonCellError::BagOfCellsDeserializationError(_) => {
+                assert_eq!(err_msg, boc_error.to_string());
+            }
+            _ => return Err(boc_error),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_error_invalid_exotic_cell_data_pruned_branch() -> Result<(), TonCellError> {
+        let err_msg =
+            "Bag of cells deserialization error (BoC deserialization error: Invalid exotic cell data \
+             ((Pruned branch cell must have exactly 288 bits, got 856))";
+
+        let hex =
+            "b5ee9c72d1000a000000000000000008860101ff041cffff000100000000000010081c0100000000000000\
+            0000000000000000000000b5ee00000000ff9c72d1000a0000000000000000000000ac00000000060606060\
+            60606060606060606000008d60104ff031cff530000002e0000080000000000000000b0504f4f4ab0b0b0b0\
+            b0b0b0b0b00f00b00500000f0000000000030053a900002f00000000000000feffffffff0000000000009ce\
+            4ee6100000000000000000000000000000886fc00ff041cffff00000000000063000000000000eeee9c7206\
+            9c720606060000060600";
+        let boc_error = BagOfCells::parse_hex(hex).unwrap_err();
+        match boc_error {
+            TonCellError::BagOfCellsDeserializationError(_) => {
+                assert_eq!(err_msg, boc_error.to_string());
+            }
+            _ => return Err(boc_error),
+        }
+        assert_eq!(err_msg, boc_error.to_string());
+        Ok(())
+    }
+
+    #[test]
+    fn test_invalid_boc_hex() -> Result<(), TonCellError> {
+        let hex =
+            "b5ee9c72ca0000230000000000000000000000000000000000000000000000000000000000000000000000\
+            000000000000000000000000000000000000000000000000fffffffffffffffffffffffffffffffffffffff\
+            fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\
+            fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\
+            fffffffffffffffffff0000000c000c0cffffffffffff000000000000000000000000000000000000000000\
+            0600080c";
+        assert_ok!(BagOfCells::parse_hex(hex));
         Ok(())
     }
 }

@@ -47,7 +47,7 @@ impl RawCell {
 #[derive(PartialEq, Eq, Debug, Clone, Hash)]
 pub(crate) struct RawBagOfCells {
     pub(crate) cells: Vec<RawCell>,
-    pub(crate) roots: Vec<usize>,
+    pub(crate) root_cell_indices: Vec<usize>,
 }
 
 const GENERIC_BOC_MAGIC: u32 = 0xb5ee9c72;
@@ -82,6 +82,13 @@ impl RawBagOfCells {
                 )));
             }
         };
+        if size > 4 {
+            return Err(TonCellError::boc_deserialization_error(format!(
+                "Ref count in cell should be less or equal than 4: got {}",
+                size
+            )));
+        }
+
         //   off_bytes:(## 8) { off_bytes <= 8 }
         let off_bytes = reader.read::<u8>().map_boc_deserialization_error()?;
         //cells:(##(size * 8))
@@ -121,14 +128,14 @@ impl RawBagOfCells {
 
         Ok(RawBagOfCells {
             cells: cell_vec,
-            roots: root_list,
+            root_cell_indices: root_list,
         })
     }
 
     pub(crate) fn serialize(&self, has_crc32: bool) -> Result<Vec<u8>, TonCellError> {
         //Based on https://github.com/toncenter/tonweb/blob/c2d5d0fc23d2aec55a0412940ce6e580344a288c/src/boc/Cell.js#L198
 
-        let root_count = self.roots.len();
+        let root_count = self.root_cell_indices.len();
         let num_ref_bits = 32 - (self.cells.len() as u32).leading_zeros();
         let num_ref_bytes = (num_ref_bits + 7) / 8;
         let has_idx = false;
@@ -185,7 +192,7 @@ impl RawBagOfCells {
         writer
             .write(8 * num_offset_bytes, full_size)
             .map_boc_serialization_error()?;
-        for &root in &self.roots {
+        for &root in &self.root_cell_indices {
             writer
                 .write(8 * num_ref_bytes, root as u32)
                 .map_boc_serialization_error()?;
@@ -334,7 +341,7 @@ mod tests {
         let raw_cell = RawCell::new(vec![1; 128], 1023, vec![], 255, false);
         let raw_bag = RawBagOfCells {
             cells: vec![raw_cell],
-            roots: vec![0],
+            root_cell_indices: vec![0],
         };
         assert!(raw_bag.serialize(false).is_ok());
     }

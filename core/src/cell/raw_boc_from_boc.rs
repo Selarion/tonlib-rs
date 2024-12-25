@@ -32,7 +32,7 @@ pub(crate) fn convert_to_raw_boc(boc: &BagOfCells) -> Result<RawBagOfCells, TonC
 
     Ok(RawBagOfCells {
         cells: raw_cells,
-        roots: root_indices,
+        root_cell_indices: root_indices,
     })
 }
 
