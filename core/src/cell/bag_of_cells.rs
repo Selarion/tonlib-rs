@@ -81,7 +81,8 @@ impl BagOfCells {
                     }
                     if ref_index >= raw_cells_len {
                         let err_msg = format!(
-                            "Index out of bounds: Try to get by index {:?}, but raw.cells has {:?} len",
+                            "Index out of bounds: Trying to get by index {:?}, but raw.cells \
+                            has {:?} len",
                             ref_index, raw_cells_len
                         );
                         return Err(TonCellError::boc_deserialization_error(err_msg));
@@ -108,16 +109,7 @@ impl BagOfCells {
         let mut roots = vec![];
         for ref_index in raw.root_cell_indices.into_iter() {
             if raw_cells_len > ref_index {
-                let index = raw_cells_len - 1 - ref_index;
-                if index < raw_cells_len {
-                    roots.push(cells[index].clone());
-                } else {
-                    let err_msg = format!(
-                        "Index out of bounds: Try to get by index {:?}, but raw.cells has {:?} len",
-                        index, raw_cells_len
-                    );
-                    return Err(TonCellError::boc_deserialization_error(err_msg));
-                }
+                roots.push(cells[raw_cells_len - 1 - ref_index].clone());
             } else {
                 let err_msg = "Index out of bounds: Length of array of raw cells must be less \
                 than number of roots";
@@ -374,10 +366,11 @@ mod tests {
                 should be less or equal than 4: got 6)";
 
         match boc_err {
-            TonCellError::BagOfCellsDeserializationError(_) => {}
+            TonCellError::BagOfCellsDeserializationError(_) => {
+                assert_eq!(err_msg, boc_err.to_string());
+            }
             _ => return Err(boc_err),
         };
-        assert_eq!(err_msg, boc_err.to_string());
         Ok(())
     }
 
@@ -391,16 +384,19 @@ mod tests {
         let boc_err = BagOfCells::parse_hex(hex).unwrap_err();
 
         match boc_err {
-            TonCellError::BagOfCellsDeserializationError(_) => {}
+            TonCellError::BagOfCellsDeserializationError(_) => {
+                assert_eq!(err_msg, boc_err.to_string());
+            }
             _ => return Err(boc_err),
         };
-        assert_eq!(err_msg, boc_err.to_string());
 
         let hex = "b5ee9c7201000001000056600000000c000c0cff5e0000005eb5ee9c72ca0c0c0c0c0c0c00";
         let boc_err = BagOfCells::parse_hex(hex).unwrap_err();
         assert_eq!(err_msg, boc_err.to_string());
         match boc_err {
-            TonCellError::BagOfCellsDeserializationError(_) => {}
+            TonCellError::BagOfCellsDeserializationError(_) => {
+                assert_eq!(err_msg, boc_err.to_string());
+            }
             _ => return Err(boc_err),
         }
         Ok(())
@@ -419,12 +415,13 @@ mod tests {
         let boc_error = BagOfCells::parse_hex(hex).unwrap_err();
 
         match boc_error {
-            TonCellError::BagOfCellsDeserializationError(_) => {}
+            TonCellError::BagOfCellsDeserializationError(_) => {
+                assert_eq!(err_msg, boc_error.to_string());
+            }
             _ => {
                 return Err(boc_error);
             }
         }
-        assert_eq!(err_msg, boc_error.to_string());
         Ok(())
     }
 
@@ -445,12 +442,11 @@ mod tests {
             0404040404040404040404040404040400002501250b4b0b0800ca00250c00000c000c100c0c0c26";
         let boc_error = BagOfCells::parse_hex(hex).unwrap_err();
         match boc_error {
-            TonCellError::BagOfCellsDeserializationError(_) => {}
-            _ => {
-                return Err(boc_error);
+            TonCellError::BagOfCellsDeserializationError(_) => {
+                assert_eq!(err_msg, boc_error.to_string());
             }
+            _ => return Err(boc_error),
         }
-        assert_eq!(err_msg, boc_error.to_string());
         Ok(())
     }
 
@@ -469,10 +465,10 @@ mod tests {
             9c720606060000060600";
         let boc_error = BagOfCells::parse_hex(hex).unwrap_err();
         match boc_error {
-            TonCellError::BagOfCellsDeserializationError(_) => {}
-            _ => {
-                return Err(boc_error);
+            TonCellError::BagOfCellsDeserializationError(_) => {
+                assert_eq!(err_msg, boc_error.to_string());
             }
+            _ => return Err(boc_error),
         }
         assert_eq!(err_msg, boc_error.to_string());
         Ok(())
