@@ -1,9 +1,9 @@
-use std::io::Cursor;
-
-use bitstream_io::{BigEndian, BitWrite, BitWriter, ByteRead, ByteReader};
+use std::io::{Cursor, SeekFrom};
+use std::ptr::read;
+use bitstream_io::{BigEndian, BitWrite, BitWriter, ByteRead, ByteReader, Numeric};
 use crc::Crc;
 use lazy_static::lazy_static;
-
+use num_traits::ToPrimitive;
 use crate::cell::level_mask::LevelMask;
 use crate::cell::{MapTonCellError, TonCellError};
 
@@ -106,18 +106,42 @@ impl RawBagOfCells {
         }
         //   cell_data:(tot_cells_size * [ uint8 ])
         let mut cell_vec = Vec::with_capacity(cells);
-
         for _ in 0..cells {
             let cell = read_cell(&mut reader, size)?;
             cell_vec.push(cell);
         }
-        //   crc32c:has_crc32c?uint32
-        let _crc32c = if has_crc32c {
-            reader.read::<u32>().map_boc_deserialization_error()?
-        } else {
-            0
+
+        if has_crc32c {
+            let without_last_4 = &serial[..serial.len().saturating_sub(4)];
+            // let check_sum = CRC_32_ISCSI.checksum(without_last_4); ;
+
+            let position = reader.reader().position();
+            let last_4 = &serial[(position + 1) as usize..];
+
+            // let offset = position.saturating_sub(position - serial.len() as u64);
+            // let last_4= &serial[offset as usize..];
+            let check_sum = CRC_32_ISCSI.checksum(without_last_4).to_le_bytes();
+
+            // let position = reader.reader().position() as usize;
+            // let offset = position.saturating_sub(serial.len()) as u64;
+            // // let offset = (reader.reader().position() as usize - serial.len()) as u64;
+            // let last_4= &serial[offset as usize..];
+
+
+            // let a = read_var_size(&mut reader, offset)?;
+            // let boc_crc32 = a;
+            // let mut boc_crc32 = vec![0u8; offset];
+            // reader.read_as(&mut boc_crc32).map_boc_deserialization_error()?;
+
+            println!("dfdsf");
+
+            if last_4 != check_sum {
+                return Err(TonCellError::boc_deserialization_error(format!(
+                    "Crc32: checksum failed: from serial: &[u8] = {:?} , calculated &[u8] = {:?}",
+                    last_4, check_sum
+                )));
+            };
         };
-        // TODO: Check crc32
 
         Ok(RawBagOfCells {
             cells: cell_vec,
@@ -326,7 +350,6 @@ fn read_var_size(
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     #[test]
