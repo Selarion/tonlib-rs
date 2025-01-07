@@ -65,7 +65,10 @@ impl BagOfCells {
         }
     }
 
-    pub fn parse(serial: &[u8]) -> Result<BagOfCells, TonCellError> {
+    pub fn parse<T>(serial: T) -> Result<BagOfCells, TonCellError>
+    where
+        T: AsRef<[u8]>,
+    {
         let raw = RawBagOfCells::parse(serial)?;
         let num_cells = raw.cells.len();
         let mut cells: Vec<ArcCell> = Vec::with_capacity(num_cells);
